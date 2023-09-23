@@ -29,11 +29,10 @@ def get_player_grid(player_name):
     return grid
 
 
-def confirm_player_grid(player_grid):
+def confirm_player_grid(player_name, player_grid):
     print(f"Here's the grid you've entered for {player_name}:")
-    for row in grid:
+    for row in player_grid:
         print("".join(row))
-     
     while True:
         confirmation = input("Is this correct? (y/n): ").strip().lower()
         if confirmation == 'y':
@@ -82,9 +81,7 @@ def score_ecosystem(player_name, grid, card_info):
     for i in range(len(grid)):
         for j in range(len(grid[i])):
             card = grid[i][j]
-            card_type = card_info[card]['type']
 
-            # Scoring rules for each card type
     # Scoring rules for each card type
     for i in range(len(grid)):
         for j in range(len(grid[i])):
@@ -201,7 +198,7 @@ def score_ecosystem(player_name, grid, card_info):
     player_scores['Producer'] = player_scores['Coral'] + player_scores['Krill']
     player_scores['Prey'] = player_scores['Grouper'] + player_scores['Clownfish']
     player_scores['Predator'] = player_scores['Eel'] + player_scores['Shark']
-    
+
     # Calculate Food Web score
     player_scores['Food Web'] = calculate_food_web(player_scores)
 
@@ -218,80 +215,74 @@ def calculate_food_web(player_scores):
     producer_score = player_scores.get('Producer', 0)
     prey_score = player_scores.get('Prey', 0)
     predator_score = player_scores.get('Predator', 0)
-    
     # Calculate Food Web score as minimum among Producer, Prey, and Predator
     food_web_score = min(producer_score, prey_score, predator_score)
-    
+
     return food_web_score
-
-
-def special_scoring_rules(player_data_list):
-    pass
 
 def generate_markdown_output(players, scores):
     # Initialize an empty list to store Markdown-formatted lines
     markdown_lines = []
-    
+
     # Add the header row with player names
     header = "| Metric | " + " | ".join([player for player in players]) + " |"
     markdown_lines.append(header)
-    
+
     # Add the separator row
     separator = "| --- | " + " | ".join(["---" for _ in players]) + " |"
     markdown_lines.append(separator)
-    
+
     # Add the rows for each card
     for card in ['Coral', 'Krill', 'Plankton', 'Grouper', 'Clownfish', 'Crab', 'Eel', 'Shark', 'Whale']:
         row = f"| {card} | " + " | ".join([str(scores[player][card]) for player in players]) + " |"
         markdown_lines.append(row)
-    
+
     # Add the rows for additional metrics
     for metric in ['Producer', 'Prey', 'Predator', 'Food Web', 'Turtle', 'Octopus']:
         row = f"| {metric} | " + " | ".join([str(scores[player].get(metric, 0)) for player in players]) + " |"
         markdown_lines.append(row)
-    
+
     # Add the total row
     row = "| Total | " + " | ".join([str(sum(scores[player].values())) for player in players]) + " |"
     markdown_lines.append(row)
-    
+
     # Combine all lines into a single Markdown-formatted string
     markdown_output = "\n".join(markdown_lines)
-    
+
     return markdown_output
 
 def main():
-    initialise_card_info()
+    card_info = initialise_card_info()
     num_players = get_number_of_players()
     players = set()
     player_scores = {}
-    
+
     for i in range(num_players):
         while True:
             player_name = get_player_name(i + 1)
-            
+
             if player_name not in players:
                 players.add(player_name)
                 break
             else:
                 print("This name has already been used. Please choose a different name.")
-        
+
         player_grid = get_player_grid(player_name)
-        confirmed = confirm_player_grid(player_grid)
-        
+        confirmed = confirm_player_grid(player_name, player_grid)
+
         while not confirmed:
             print("Grid was not confirmed. Please re-enter.")
             player_grid = get_player_grid(player_name)
-            confirmed = confirm_player_grid(player_grid)
+            confirmed = confirm_player_grid(player_name, player_grid)
 
         # Calculate and store the player's score
-        player_scores[player_name] = score_ecosystem(player_grid)
-        
+        player_scores[player_name] = score_ecosystem(player_name, player_grid, card_info)
+
     # Generate the Markdown-formatted output
     markdown_output = generate_markdown_output(list(players), player_scores)
-    
+
     # Print or save the Markdown output
     print(markdown_output)
 
 if __name__ == "__main__":
     main()
-
