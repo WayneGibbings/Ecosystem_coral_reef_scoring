@@ -195,9 +195,10 @@ def score_ecosystem(player_name, grid, card_info):
     player_scores['W'] = 2 * krill_count
 
     # Calculate Food Web score
-    player_scores['Producer'] = player_scores['Coral'] + player_scores['Krill']
-    player_scores['Prey'] = player_scores['Grouper'] + player_scores['Clownfish']
-    player_scores['Predator'] = player_scores['Eel'] + player_scores['Shark']
+    player_scores['Producer'] = player_scores['C'] + player_scores['K'] + player_scores['P']
+    player_scores['Prey'] = player_scores['G'] + player_scores['N'] + player_scores['B']
+    player_scores['Predator'] = player_scores['E'] + player_scores['S'] + player_scores['W']
+
 
     # Calculate Food Web score
     player_scores['Food Web'] = calculate_food_web(player_scores)
@@ -205,10 +206,7 @@ def score_ecosystem(player_name, grid, card_info):
     # Return the complete scoring data
     return {
         'player_name': player_name,
-        'card_scores': player_scores,
-        'producer_count': sum(producer_count.values()),
-        'prey_count': sum(prey_count.values()),
-        'predator_count': sum(predator_count.values())}
+        'card_scores': player_scores}
 
 
 def calculate_food_web(player_scores):
@@ -220,12 +218,15 @@ def calculate_food_web(player_scores):
 
     return food_web_score
 
-def generate_markdown_output(players, scores):
+def generate_markdown_output(players, scores, card_info):
+    # Generate a mapping from single-character keys to full names using card_info
+    #key_to_fullname = {v['Char']: k for k, v in card_info.items()}
+  
     # Initialize an empty list to store Markdown-formatted lines
     markdown_lines = []
 
     # Add the header row with player names
-    header = "| Metric | " + " | ".join([player for player in players]) + " |"
+    header = "| Metric | " + " | ".join(list(players)) + " |"
     markdown_lines.append(header)
 
     # Add the separator row
@@ -233,18 +234,25 @@ def generate_markdown_output(players, scores):
     markdown_lines.append(separator)
 
     # Add the rows for each card
-    for card in ['Coral', 'Krill', 'Plankton', 'Grouper', 'Clownfish', 'Crab', 'Eel', 'Shark', 'Whale']:
-        row = f"| {card} | " + " | ".join([str(scores[player][card]) for player in players]) + " |"
-        markdown_lines.append(row)
+    for card in ['C', 'K', 'P', 'G', 'N', 'B', 'E', 'S', 'W']:
+      full_name = card_info.get(card, {}).get('name', card)
+      row = f"| {full_name} | " + " | ".join([str(scores[player].get(card, 0)) for player in players]) + " |"
+      markdown_lines.append(row)
 
     # Add the rows for additional metrics
-    for metric in ['Producer', 'Prey', 'Predator', 'Food Web', 'Turtle', 'Octopus']:
+    for metric in ['Producer', 'Prey', 'Predator', 'Food Web']:
         row = f"| {metric} | " + " | ".join([str(scores[player].get(metric, 0)) for player in players]) + " |"
         markdown_lines.append(row)
 
+    for card in ['T', 'O']:
+      full_name = card_info.get(card, {}).get('name', card)
+      row = f"| {full_name} | " + " | ".join([str(scores[player].get(card, 0)) for player in players]) + " |"
+      markdown_lines.append(row)
+
     # Add the total row
-    row = "| Total | " + " | ".join([str(sum(scores[player].values())) for player in players]) + " |"
-    markdown_lines.append(row)
+    total_row = f"| Total | " + " | ".join([str(scores[player].get('Producer', 0) + scores[player].get('Prey', 0) + scores[player].get('Predator', 0) + scores[player].get('Turtle', 0) + scores[player].get('Octopus', 0) + scores[player].get('Food Web', 0)) for player in players]) + " |"
+
+    markdown_lines.append(total_row)
 
     # Combine all lines into a single Markdown-formatted string
     markdown_output = "\n".join(markdown_lines)
@@ -274,12 +282,12 @@ def main():
             print("Grid was not confirmed. Please re-enter.")
             player_grid = get_player_grid(player_name)
             confirmed = confirm_player_grid(player_name, player_grid)
-
+l
         # Calculate and store the player's score
         player_scores[player_name] = score_ecosystem(player_name, player_grid, card_info)
 
     # Generate the Markdown-formatted output
-    markdown_output = generate_markdown_output(list(players), player_scores)
+    markdown_output = generate_markdown_output(list(players), player_scores, card_info)
 
     # Print or save the Markdown output
     print(markdown_output)
