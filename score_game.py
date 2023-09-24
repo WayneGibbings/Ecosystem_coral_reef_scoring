@@ -1,3 +1,5 @@
+from pprint import pprint
+
 def get_number_of_players():
     while True:
         try:
@@ -59,6 +61,33 @@ def initialise_card_info():
         'F': {'name': 'Flipped', 'type': 'none'}
     }
     return card_info
+
+def update_plankton_scores(player_scores):
+    plankton_counts = {player: info['card_scores']['P'] for player, info in player_scores.items()}
+    sorted_plankton = sorted(plankton_counts.items(), key=lambda x: x[1], reverse=True)
+    points = [12, 8, 4]
+    last_score = -1
+    last_point = -1
+
+    for i, (player, count) in enumerate(sorted_plankton):
+        if count == last_score:
+            player_scores[player]['card_scores']['P'] = last_point
+        else:
+            player_scores[player]['card_scores']['P'] = points[i]
+            last_point = points[i]
+        last_score = count
+    
+    # Updating the 'Producer' scores
+    for player, info in player_scores.items():
+        plankton_score = info['card_scores'].get('P', 0)
+        if 'Producer' in info['card_scores']:
+            player_scores[player]['card_scores']['Producer'] += plankton_score
+        else:
+            player_scores[player]['card_scores']['Producer'] = plankton_score
+
+    return player_scores
+
+
 
 
 def score_ecosystem(player_name, grid, card_info):
@@ -136,13 +165,15 @@ def score_ecosystem(player_name, grid, card_info):
                 # Logic handled outside this loop
 
             elif card == 'B':
-                adjacent_score = 0
-                for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                    if 0 <= i + dx < 4 and 0 <= j + dy < 5:
-                        if grid[i + dx][j + dy] == 'P':
-                            adjacent_score += 2
-                player_scores['B'] += adjacent_score
+                # Count the number of Planktons ('P') in the same row
+                plankton_count_in_row = sum(1 for col_index in range(5) if grid[i][col_index] == 'P')
 
+                # Calculate the score for this row
+                row_score_for_crab = 2 * plankton_count_in_row
+
+                # Add the row score to the player's total score for 'B'
+                player_scores['B'] += row_score_for_crab
+              
             #elif card == 'W':
                 # Logic handled outside this loop
 
@@ -178,30 +209,29 @@ def score_ecosystem(player_name, grid, card_info):
                             stack.append((x + dx, y + dy))
                 player_scores['K'] += 9 if group_size >= 3 else 4 if group_size == 2 else 1
 
-    # Count Prey in same row or column for 'S' card
-    for i in range(4):
-        for j in range(5):
-            if grid[i][j] == 'S':
-                row_prey_count = sum(1 for card in grid[i] if card in ['G', 'N', 'B'])
-                col_prey_count = sum(1 for x in range(4) if grid[x][j] in ['G', 'N', 'B'])
-                player_scores['S'] += 2 * (row_prey_count + col_prey_count)
-
+    # Count prey in the same row or column for 'S' card
+    for row in range(4):
+      for col in range(5):
+        if grid[row][col] == 'S':
+            row_prey_count = sum(1 for card in grid[row] if card in ['G', 'N', 'B'])
+            col_prey_count = sum(1 for row_index in range(4) if grid[row_index][col] in ['G', 'N', 'B'])
+            
+            player_scores['S'] += 2 * (row_prey_count + col_prey_count)
+          
     # Count Plankton for 'P' card (for end game bonus)
     plankton_count = sum(1 for i in range(4) for j in range(5) if grid[i][j] == 'P')
     player_scores['P'] = plankton_count  # This will be used later for end game bonuses
 
     # Count Krill in ecosystem for 'W' card
     krill_count = sum(1 for i in range(4) for j in range(5) if grid[i][j] == 'K')
-    player_scores['W'] = 2 * krill_count
+    whale_count = sum(1 for i in range(4) for j in range(5) if grid[i][j] == 'W')
+    # Update 'W' score for each player
+    player_scores['W'] = 2 * krill_count * whale_count
 
     # Calculate Food Web score
-    player_scores['Producer'] = player_scores['C'] + player_scores['K'] + player_scores['P']
+    player_scores['Producer'] = player_scores['C'] + player_scores['K'] # add in P scores after
     player_scores['Prey'] = player_scores['G'] + player_scores['N'] + player_scores['B']
     player_scores['Predator'] = player_scores['E'] + player_scores['S'] + player_scores['W']
-
-
-    # Calculate Food Web score
-    player_scores['Food Web'] = calculate_food_web(player_scores)
 
     # Return the complete scoring data
     return {
@@ -210,54 +240,63 @@ def score_ecosystem(player_name, grid, card_info):
 
 
 def calculate_food_web(player_scores):
-    producer_score = player_scores.get('Producer', 0)
-    prey_score = player_scores.get('Prey', 0)
-    predator_score = player_scores.get('Predator', 0)
-    # Calculate Food Web score as minimum among Producer, Prey, and Predator
-    food_web_score = min(producer_score, prey_score, predator_score)
+    for player, info in player_scores.items():
+        producer_score = info['card_scores'].get('Producer', 0)
+        prey_score = info['card_scores'].get('Prey', 0)
+        predator_score = info['card_scores'].get('Predator', 0)
+        
+        # Calculate Food Web score as the minimum among Producer, Prey, and Predator
+        food_web_score = min(producer_score, prey_score, predator_score)
+        
+        # Update the Food Web score in the player_scores dictionary
+        info['card_scores']['Food Web'] = food_web_score
 
-    return food_web_score
 
-def generate_markdown_output(players, scores, card_info):
-    # Generate a mapping from single-character keys to full names using card_info
-    #key_to_fullname = {v['Char']: k for k, v in card_info.items()}
-  
-    # Initialize an empty list to store Markdown-formatted lines
-    markdown_lines = []
+def calculate_total(player_scores):
+    for player, data in player_scores.items():
+        card_scores = data['card_scores']
+        
+        # Calculate totals for Producer, Prey, Predator, Turtle, Octopus, and Food Web
+        total_score = (
+            card_scores.get('Producer', 0) + 
+            card_scores.get('Prey', 0) + 
+            card_scores.get('Predator', 0) + 
+            card_scores.get('T', 0) + 
+            card_scores.get('O', 0) + 
+            card_scores.get('Food Web', 0)
+        )
+        
+        # Add total score to each player's data
+        data['total_score'] = total_score
 
-    # Add the header row with player names
-    header = "| Metric | " + " | ".join(list(players)) + " |"
-    markdown_lines.append(header)
+def generate_markdown_table(player_scores, card_info):
+    players = [player for player in player_scores]
+    player_count = len(players)
+    
+    # Create the header with proper alignment
+    header = "| {:<10} |".format(" ") + " | ".join([f"{player:^10}" for player in players]) + " |"
+    
+    # Create the divider with the correct number of dashes
+    divider = "|{:<11}|".format("-" * 10) + ("{:<11}|".format("-" * 10) * player_count)
+    
+    markdown_lines = [header, divider]
+    
+    order = ['C', 'K', 'P', '---', 'G', 'N', 'B', '---', 'E', 'S', 'W', '---', 'Producer', 'Prey', 'Predator', 'Food Web', 'T', 'O', '---']
 
-    # Add the separator row
-    separator = "| --- | " + " | ".join(["---" for _ in players]) + " |"
-    markdown_lines.append(separator)
-
-    # Add the rows for each card
-    for card in ['C', 'K', 'P', 'G', 'N', 'B', 'E', 'S', 'W']:
-      full_name = card_info.get(card, {}).get('name', card)
-      row = f"| {full_name} | " + " | ".join([str(scores[player].get(card, 0)) for player in players]) + " |"
-      markdown_lines.append(row)
-
-    # Add the rows for additional metrics
-    for metric in ['Producer', 'Prey', 'Predator', 'Food Web']:
-        row = f"| {metric} | " + " | ".join([str(scores[player].get(metric, 0)) for player in players]) + " |"
+    for card in order:
+        if card == '---':
+            row = divider
+        else:
+            row_name = card_info.get(card, {}).get('name', card)
+            row = f"| {row_name:<10} | " + " | ".join([f"{player_scores[player]['card_scores'].get(card, 0):^10}" for player in players]) + " |"
+        
         markdown_lines.append(row)
-
-    for card in ['T', 'O']:
-      full_name = card_info.get(card, {}).get('name', card)
-      row = f"| {full_name} | " + " | ".join([str(scores[player].get(card, 0)) for player in players]) + " |"
-      markdown_lines.append(row)
-
-    # Add the total row
-    total_row = f"| Total | " + " | ".join([str(scores[player].get('Producer', 0) + scores[player].get('Prey', 0) + scores[player].get('Predator', 0) + scores[player].get('Turtle', 0) + scores[player].get('Octopus', 0) + scores[player].get('Food Web', 0)) for player in players]) + " |"
-
+        
+    # Generate the 'Total' row
+    total_row = f"| {'Total':<10} | " + " | ".join([f"{player_info['total_score']:^10}" for player_info in player_scores.values()]) + " |"
     markdown_lines.append(total_row)
 
-    # Combine all lines into a single Markdown-formatted string
-    markdown_output = "\n".join(markdown_lines)
-
-    return markdown_output
+    return "\n" + "\n".join(markdown_lines)  
 
 def main():
     card_info = initialise_card_info()
@@ -282,15 +321,24 @@ def main():
             print("Grid was not confirmed. Please re-enter.")
             player_grid = get_player_grid(player_name)
             confirmed = confirm_player_grid(player_name, player_grid)
-l
+
         # Calculate and store the player's score
         player_scores[player_name] = score_ecosystem(player_name, player_grid, card_info)
-
+      
+    update_plankton_scores(player_scores)
+    calculate_food_web(player_scores)
+    calculate_total(player_scores)
+  
     # Generate the Markdown-formatted output
-    markdown_output = generate_markdown_output(list(players), player_scores, card_info)
-
+    markdown_output = generate_markdown_table(player_scores, card_info)
+    #print(list(players))
+    #print(player_scores)
+    with open('output.txt', 'w') as file:
+      pprint(player_scores, stream=file)
+      
     # Print or save the Markdown output
     print(markdown_output)
 
 if __name__ == "__main__":
     main()
+# python score_game.py < input.txt
